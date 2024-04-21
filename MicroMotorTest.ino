@@ -12,11 +12,10 @@ bool is_forwards = false;
 bool go_forwards = true;
 
 long previous_millis = 0;
-long interval = 2000;  // interval at which to change motor direction (milliseconds)
+long interval = 500;  // interval at which to change motor direction (milliseconds)
 
 int motor_control_a = 22;
 int motor_control_b = 23;
-
 
 
 const int PWM_CHANNEL_A = 0;    // ESP32 has 16 channels which can generate 16 independent waveforms
@@ -35,6 +34,9 @@ int revolutions = 0;
 // 7 CPR
 // 210 reduction ratio
 // 2940 pulses-per-rev (pulse = STATE CHANGE) [7*210*2]
+const int PULSES_PER_REV = 2940;
+
+float rpm = 0;
 
 
 void IRAM_ATTR isrEncoderAChange(){
@@ -157,38 +159,45 @@ void setup() {
 void loop() {
 
   unsigned long current_millis = millis();
-
- /* if(current_millis - previous_millis > interval) {
-    motorStop(); 
-    noInterrupts();
-    previous_millis = current_millis;    
-    Serial.print("A Pulse Count ");
-    Serial.print(pulse_count_a);
-    Serial.print("     B Pulse Count ");
-    Serial.println(pulse_count_b);
+  
+  if(current_millis - previous_millis > interval) {
+    
+    unsigned long time_difference_millis = current_millis - previous_millis;
+    
+    // calculate current rpm;
+    float pulse_difference_a = pulse_count_a - previous_pulse_count_a;
     previous_pulse_count_a = pulse_count_a;
     previous_pulse_count_b = pulse_count_b;
-    pulse_count_a = 0;
-    pulse_count_b = 0;
-    delay(1000);
-    interrupts();
-    motorChangeDirection();
-  }
-*/
+    rpm = ((pulse_difference_a/PULSES_PER_REV) / (float(time_difference_millis)/1000)) * 60;
 
-  if(pulse_count_a == 2940 || pulse_count_b == 2940){
+    previous_millis = current_millis;    
+  }
+
+
+  if(pulse_count_a % PULSES_PER_REV == 0 || pulse_count_b % PULSES_PER_REV == 0){
     revolutions+=1;
     Serial.print("A Pulse Count ");
     Serial.print(pulse_count_a);
     Serial.print("     B Pulse Count ");
     Serial.print(pulse_count_b);
     Serial.print("     Revolutions ");
-    Serial.println(revolutions);
-    previous_pulse_count_a = pulse_count_a;
-    previous_pulse_count_b = pulse_count_b;
-    pulse_count_a = 0;
-    pulse_count_b = 0;
+    Serial.print(revolutions);
+    Serial.print("     RPM ");
+    Serial.println(rpm);
+
+    if(revolutions%4 == 0){
+      motorChangeDirection();
+    }
+    if(revolutions%20 == 0){
+      motorForwards(255);
+    } else if (revolutions%10 == 0) {
+      motorForwards(50);
+    }
+    //pulse_count_a = 0;
+    //pulse_count_b = 0;
   }
+
+
   
   
   if(encoder_a_prev_state != encoder_a_state){
